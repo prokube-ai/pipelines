@@ -13,10 +13,18 @@ jobs:
       - name: Create k8s Kind Cluster
         uses: container-tools/kind-action@v2
         with:
-          cluster_name: kfp-tekton
+          cluster_name: kfp-functional-test
           kubectl_version: v1.29.2
           version: v0.22.0
           node_image: kindest/node:v1.29.2
+      - name: Deploy kfp
+        run: |
+          export PIPELINE_VERSION=2.2.0
+          kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref=$PIPELINE_VERSION"
+          kubectl wait --for condition=established --timeout=60s crd/applications.app.k8s.io
+          kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/dev?ref=$PIPELINE_VERSION"
+          echo "Waiting for max 300s for kfp cluster to come up"
+          kubectl wait --for=condition=Ready pods --all -n kubeflow --timeout=300s
       - name: Run Functional Tests
         run: |
           log_dir=$(mktemp -d)
